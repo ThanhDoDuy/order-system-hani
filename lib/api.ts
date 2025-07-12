@@ -1,7 +1,7 @@
 import { config } from './config'
 
-// Use direct backend URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
+// Use the config for API base URL
+const API_BASE_URL = config.api.baseUrl;
 
 // Backend Types (as returned from API)
 interface BackendProduct {
@@ -175,9 +175,11 @@ class ApiClient {
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         ...options.headers,
       },
       credentials: 'include',
+      mode: 'cors',
       ...options,
     };
 
@@ -189,8 +191,8 @@ class ApiClient {
           this.isRedirecting = true;
           
           // Clear invalid token
-          document.cookie = 'auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-          document.cookie = 'user_info=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+          document.cookie = 'auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=' + window.location.hostname;
+          document.cookie = 'user_info=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=' + window.location.hostname;
           
           // Only redirect if not already on login page and not making an auth-related request
           if (!window.location.pathname.includes('/login') && 

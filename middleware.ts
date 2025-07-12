@@ -20,18 +20,13 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check if user is authenticated
-  const authToken = request.cookies.get('auth_token');
-  const isAuthenticated = !!authToken?.value;
+  // Check if user is authenticated by checking the auth cookie from backend
+  const authCookie = request.cookies.get('auth_token') || request.cookies.get('connect.sid'); // Check for both JWT and session cookies
+  const isAuthenticated = !!authCookie?.value;
   
   // If accessing login while authenticated
   if (isAuthenticated && pathname === '/login') {
-    const token = authToken.value;
-    // Only redirect if token looks valid
-    if (token && token.split('.').length === 3) {
-      return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
-    return NextResponse.next();
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
   
   // Protected routes that require authentication
