@@ -160,6 +160,7 @@ function transformOrder(backendOrder: BackendOrder): Order {
 // API Client
 class ApiClient {
   private baseUrl: string;
+  private isRedirecting = false;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
@@ -176,7 +177,7 @@ class ApiClient {
         'Content-Type': 'application/json',
         ...options.headers,
       },
-      credentials: 'include', // Changed to 'include' for cross-origin requests
+      credentials: 'include',
       ...options,
     };
 
@@ -184,16 +185,19 @@ class ApiClient {
       const response = await fetch(url, config);
       
       if (!response.ok) {
-        if (response.status === 401) {
+        if (response.status === 401 && !this.isRedirecting) {
+          this.isRedirecting = true;
+          
           // Clear invalid token
           document.cookie = 'auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
           document.cookie = 'user_info=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
           
-          // Only redirect if not already on login page
-          if (!window.location.pathname.includes('/login')) {
+          // Only redirect if not already on login page and not making an auth-related request
+          if (!window.location.pathname.includes('/login') && 
+              !endpoint.includes('/auth/')) {
             window.location.href = '/login';
+            throw new Error('Unauthorized - token invalid or expired');
           }
-          throw new Error('Unauthorized - token invalid or expired');
         }
         
         // Try to get error message from response
@@ -212,6 +216,8 @@ class ApiClient {
       if (!text) {
         throw new Error('No data received from server');
       }
+      
+      this.isRedirecting = false; // Reset the flag after successful request
       return JSON.parse(text);
     } catch (error) {
       console.error('API request failed:', error);
