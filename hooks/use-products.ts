@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { apiClient, Product, CreateProductRequest, UpdateProductRequest } from "@/lib/api"
+import { api, Product, CreateProductRequest, UpdateProductRequest } from "@/lib/api"
 
 export function useProducts() {
   const [products, setProducts] = useState<Product[]>([])
@@ -12,7 +12,7 @@ export function useProducts() {
     try {
       setLoading(true)
       setError(null)
-      const data = await apiClient.getProducts()
+      const data = await api.getProducts()
       setProducts(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch products')
@@ -29,7 +29,7 @@ export function useProducts() {
   const addProduct = async (productData: CreateProductRequest) => {
     try {
       setError(null)
-      const newProduct = await apiClient.createProduct(productData)
+      const newProduct = await api.createProduct(productData)
       setProducts((prev) => [...prev, newProduct])
       return newProduct
     } catch (err) {
@@ -42,7 +42,7 @@ export function useProducts() {
   const updateProduct = async (id: string, productData: UpdateProductRequest) => {
     try {
       setError(null)
-      const updatedProduct = await apiClient.updateProduct(id, productData)
+      const updatedProduct = await api.updateProduct(id, productData)
       setProducts((prev) => prev.map((product) => (product.id === id ? updatedProduct : product)))
       return updatedProduct
     } catch (err) {
@@ -55,7 +55,7 @@ export function useProducts() {
   const deleteProduct = async (id: string) => {
     try {
       setError(null)
-      await apiClient.deleteProduct(id)
+      await api.deleteProduct(id)
       setProducts((prev) => prev.filter((product) => product.id !== id))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete product')

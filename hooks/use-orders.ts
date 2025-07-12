@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { apiClient, Order, CreateOrderRequest } from "@/lib/api"
+import { api, Order, CreateOrderRequest } from "@/lib/api"
 
 export function useOrders() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -12,7 +12,7 @@ export function useOrders() {
     try {
       setLoading(true)
       setError(null)
-      const data = await apiClient.getOrders()
+      const data = await api.getOrders()
       setOrders(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch orders')
@@ -26,10 +26,10 @@ export function useOrders() {
     fetchOrders()
   }, [])
 
-  const createOrder = async (orderData: CreateOrderRequest) => {
+  const addOrder = async (orderData: CreateOrderRequest) => {
     try {
       setError(null)
-      const newOrder = await apiClient.createOrder(orderData)
+      const newOrder = await api.createOrder(orderData)
       setOrders((prev) => [...prev, newOrder])
       return newOrder
     } catch (err) {
@@ -42,7 +42,7 @@ export function useOrders() {
   const updateOrder = async (id: string, orderData: Partial<Order>) => {
     try {
       setError(null)
-      const updatedOrder = await apiClient.updateOrder(id, orderData)
+      const updatedOrder = await api.updateOrder(id, orderData)
       setOrders((prev) => prev.map((order) => (order.id === id ? updatedOrder : order)))
       return updatedOrder
     } catch (err) {
@@ -55,7 +55,7 @@ export function useOrders() {
   const deleteOrder = async (id: string) => {
     try {
       setError(null)
-      await apiClient.deleteOrder(id)
+      await api.deleteOrder(id)
       setOrders((prev) => prev.filter((order) => order.id !== id))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete order')
@@ -68,7 +68,7 @@ export function useOrders() {
     orders,
     loading,
     error,
-    createOrder,
+    addOrder,
     updateOrder,
     deleteOrder,
     refetch: fetchOrders,

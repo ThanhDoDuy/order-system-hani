@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Trash2, Download, FileText, Pencil } from "lucide-react"
+import { Search, Trash2, Eye, Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,8 +12,36 @@ import { Order } from "@/lib/api"
 import { useToast } from "@/components/ui/use-toast"
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog"
+import { InvoicePrint } from "@/components/products/InvoicePrint";
+
+export function getStatusBadge(status: string) {
+  switch (status) {
+    case "completed":
+      return (
+        <Badge variant="default" className="bg-green-500">
+          Hoàn thành
+        </Badge>
+      )
+    case "processing":
+      return <Badge variant="secondary">Đang xử lý</Badge>
+    case "pending":
+      return <Badge variant="outline">Chờ xử lý</Badge>
+    case "cancelled":
+      return <Badge variant="destructive">Đã hủy</Badge>
+    default:
+      return <Badge variant="outline">Không xác định</Badge>
+  }
+}
+
+export function getVietQRUrl(amount: number, orderNumber: string) {
+  const BANK_ID = process.env.NEXT_PUBLIC_BANK_ID || '970443';
+  const ACCOUNT_NO = process.env.NEXT_PUBLIC_ACCOUNT_NO || '02022122';
+  const ACCOUNT_NAME = process.env.NEXT_PUBLIC_ACCOUNT_NAME || 'NGUYEN THI HONG VAN';
+  const template = 'compact2';
+  const addInfo = `don hang ${orderNumber}`;
+  return `https://img.vietqr.io/image/${BANK_ID}-${ACCOUNT_NO}-${template}.png?amount=${amount}&addInfo=${encodeURIComponent(addInfo)}&accountName=${encodeURIComponent(ACCOUNT_NAME || '')}`;
+}
 
 export default function OrdersPage() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -24,7 +52,6 @@ export default function OrdersPage() {
   const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null)
   const [expandedOrders, setExpandedOrders] = useState<string[]>([])
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null)
-  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
   const statusOptions = [
     { value: "pending", label: "Chờ xử lý" },
     { value: "processing", label: "Đang xử lý" },
@@ -92,24 +119,6 @@ export default function OrdersPage() {
     }
   };
 
-  const generatePDF = (order: Order) => {
-    toast({
-      title: "Xuất PDF",
-      description: `Xuất PDF cho đơn hàng ${order.orderNumber} (Tính năng sẽ được triển khai)`,
-    })
-  }
-
-  const getStatusBadge = (status: string) => {
-    const statusMap = {
-      pending: { label: "Chờ xử lý", variant: "secondary" as const },
-      processing: { label: "Đang xử lý", variant: "default" as const },
-      completed: { label: "Hoàn thành", variant: "default" as const },
-      cancelled: { label: "Đã hủy", variant: "destructive" as const },
-    }
-    const statusInfo = statusMap[status as keyof typeof statusMap] || statusMap.pending
-    return <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
-  }
-
   const toggleExpand = (orderId: string) => {
     setExpandedOrders(prev =>
       prev.includes(orderId)
@@ -118,23 +127,34 @@ export default function OrdersPage() {
     );
   }
 
-  const handleEditCustomer = (orderId: string, currentName: string) => {
-    setEditingCustomerId(orderId)
-    setEditingCustomerName(currentName)
-  }
-
-  const handleSaveCustomer = async (orderId: string) => {
-    if (!editingCustomerName.trim()) return
-    try {
-      await updateOrder(orderId, { customerName: editingCustomerName.trim() })
-      toast({ title: "Cập nhật tên khách hàng thành công!" })
-    } catch (error) {
-      toast({ title: "Cập nhật tên khách hàng thất bại!", variant: "destructive" })
-    } finally {
-      setEditingCustomerId(null)
-      setEditingCustomerName("")
+  const handlePrintInvoice = (order: Order) => {
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write('<html><head><title>Hóa đơn</title>');
+      // Thêm link tới CSS nếu cần
+      const styleLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"]'));
+      styleLinks.forEach(link => {
+        printWindow.document.write(link.outerHTML);
+      });
+      printWindow.document.write('</head><body>');
+      // Render InvoicePrint ra string
+      const container = document.createElement('div');
+      // @ts-ignore
+      import('react-dom/server').then(ReactDOMServer => {
+        container.innerHTML = ReactDOMServer.renderToString(
+          <InvoicePrint order={order} />
+        );
+        printWindow.document.body.innerHTML = container.innerHTML;
+        printWindow.document.write('</body></html>');
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 500);
+      });
     }
-  }
+  };
 
   return (
     <div className="container mx-auto p-6">
@@ -243,7 +263,7 @@ export default function OrdersPage() {
                             size="sm"
                             onClick={() => setViewOrder(order)}
                           >
-                            <FileText className="h-4 w-4" />
+                            <Eye className="h-4 w-4" />
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
@@ -279,34 +299,115 @@ export default function OrdersPage() {
           )}
         </CardContent>
       </Card>
-      {/* Thêm Dialog hiển thị chi tiết đơn hàng */}
+
+      {/* Dialog hiển thị chi tiết đơn hàng và hóa đơn */}
       <Dialog open={!!viewOrder} onOpenChange={() => setViewOrder(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Chi tiết đơn hàng</DialogTitle>
-          </DialogHeader>
+        <DialogContent className="max-w-4xl">
           {viewOrder && (
-            <div className="space-y-2">
-              <div><b>Mã đơn hàng:</b> {viewOrder.orderNumber}</div>
-              <div><b>Khách hàng:</b> {viewOrder.customerName}</div>
-              <div><b>Điện thoại:</b> {viewOrder.customerPhone}</div>
-              <div><b>Địa chỉ:</b> {viewOrder.customerAddress}</div>
-              <div><b>Trạng thái:</b> {statusOptions.find(opt => opt.value === viewOrder.status)?.label || viewOrder.status}</div>
-              <div><b>Sản phẩm:</b>
-                <ul className="list-disc ml-5">
-                  {viewOrder.items.map((item, idx) => (
-                    <li key={idx}>{item.productName} x{item.quantity}</li>
-                  ))}
-                </ul>
+            <div className="print-invoice-modal p-6 bg-white">
+              {/* Header hóa đơn */}
+              <div className="text-center border-b pb-4 avoid-break">
+                <h3 className="text-xl font-bold">HÓA ĐƠN BÁN HÀNG</h3>
+                <div className="flex justify-between text-sm mt-2">
+                  <span>Mã đơn hàng: {viewOrder.orderNumber}</span>
+                  <span>Ngày: {new Date(viewOrder.createdAt).toLocaleDateString("vi-VN")}</span>
+                </div>
+                <div className="flex justify-between text-sm mt-1">
+                  <span>Số TK: {process.env.NEXT_PUBLIC_ACCOUNT_NO}</span>
+                  <span>{process.env.NEXT_PUBLIC_ACCOUNT_NAME}</span>
+                </div>
+                <div className="text-sm mt-1">{process.env.NEXT_PUBLIC_BANK_NAME || ''}</div>
               </div>
-              <div><b>Tổng tiền:</b> {viewOrder.total.toLocaleString("vi-VN")} VNĐ</div>
+
+              {/* Thông tin khách hàng và trạng thái */}
+              <div className="grid grid-cols-2 gap-4 text-sm avoid-break mt-4">
+                <div>
+                  <strong>Thông tin khách hàng:</strong>
+                  <div>Họ tên: {viewOrder.customerName}</div>
+                  <div>Điện thoại: {viewOrder.customerPhone}</div>
+                  <div>Địa chỉ: {viewOrder.customerAddress}</div>
+                </div>
+                <div>
+                  <strong>Trạng thái đơn hàng:</strong>
+                  <div className="mt-1">{getStatusBadge(viewOrder.status)}</div>
+                  {viewOrder.notes && (
+                    <div className="mt-2">
+                      <strong>Ghi chú:</strong> {viewOrder.notes}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Bảng chi tiết sản phẩm */}
+              <div className="overflow-x-auto mt-4 avoid-break">
+                <table className="invoice-table w-full border border-black text-sm">
+                  <thead>
+                    <tr>
+                      <th className="border border-black px-2 py-2">STT</th>
+                      <th className="border border-black px-2 py-2">Tên sản phẩm</th>
+                      <th className="border border-black px-2 py-2">Đơn giá</th>
+                      <th className="border border-black px-2 py-2">Số lượng</th>
+                      <th className="border border-black px-2 py-2">Đơn vị</th>
+                      <th className="border border-black px-2 py-2">Thành tiền</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {viewOrder.items.map((item, index) => (
+                      <tr key={index}>
+                        <td className="border border-black px-2 py-2 text-center">{index + 1}</td>
+                        <td className="border border-black px-2 py-2">{item.productName}</td>
+                        <td className="border border-black px-2 py-2 text-right">{item.productPrice.toLocaleString("vi-VN")}đ</td>
+                        <td className="border border-black px-2 py-2 text-center">{item.quantity}</td>
+                        <td className="border border-black px-2 py-2 text-center">{item.unit}</td>
+                        <td className="border border-black px-2 py-2 text-right">{item.totalPrice.toLocaleString("vi-VN")}đ</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Tổng cộng */}
+              <div className="flex justify-end mt-4 space-y-1 avoid-break">
+                <div className="w-64 space-y-1">
+                  <div className="flex justify-between">
+                    <span>Tổng tiền hàng:</span>
+                    <span>{viewOrder.subtotal.toLocaleString("vi-VN")}đ</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Phí vận chuyển:</span>
+                    <span>{viewOrder.shippingFee.toLocaleString("vi-VN")}đ</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-base border-t pt-1">
+                    <span>Tổng cộng:</span>
+                    <span>{viewOrder.total.toLocaleString("vi-VN")}đ</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* QR chuyển khoản chỉ hiện khi in */}
+              <div className="print-qr flex flex-col items-center mt-6 avoid-break">
+                <img
+                  src={getVietQRUrl(viewOrder.total, viewOrder.orderNumber)}
+                  alt="QR chuyển khoản"
+                  style={{ width: 200, height: 200 }}
+                />
+                <div className="text-sm mt-2">
+                  Quét mã để thanh toán đơn hàng
+                </div>
+              </div>
+
+              {/* Nút In hóa đơn và Đóng - không in */}
+              <div className="flex justify-center pt-4 no-print">
+                <Button onClick={() => handlePrintInvoice(viewOrder!)} type="button" className="mr-2">
+                  <Printer className="h-4 w-4 mr-2" />
+                  In hóa đơn
+                </Button>
+                <DialogClose asChild>
+                  <Button variant="outline">Đóng</Button>
+                </DialogClose>
+              </div>
             </div>
           )}
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button>Đóng</Button>
-            </DialogClose>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

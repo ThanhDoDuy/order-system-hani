@@ -1,6 +1,7 @@
 import { config } from './config'
 
-const API_BASE_URL = config.api.baseUrl;
+// Use direct backend URL
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
 
 // Backend Types (as returned from API)
 interface BackendProduct {
@@ -175,6 +176,7 @@ class ApiClient {
         'Content-Type': 'application/json',
         ...options.headers,
       },
+      credentials: 'include', // Changed to 'include' for cross-origin requests
       ...options,
     };
 
@@ -182,11 +184,35 @@ class ApiClient {
       const response = await fetch(url, config);
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        if (response.status === 401) {
+          // Clear invalid token
+          document.cookie = 'auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+          document.cookie = 'user_info=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+          
+          // Only redirect if not already on login page
+          if (!window.location.pathname.includes('/login')) {
+            window.location.href = '/login';
+          }
+          throw new Error('Unauthorized - token invalid or expired');
+        }
+        
+        // Try to get error message from response
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          // If can't parse JSON, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       
       const text = await response.text();
-      return text ? JSON.parse(text) : {} as T;
+      if (!text) {
+        throw new Error('No data received from server');
+      }
+      return JSON.parse(text);
     } catch (error) {
       console.error('API request failed:', error);
       throw error;
@@ -266,12 +292,7 @@ class ApiClient {
     totalProducts: number;
     avgOrderValue: number;
   }> {
-    return this.request<{
-      totalOrders: number;
-      totalRevenue: number;
-      totalProducts: number;
-      avgOrderValue: number;
-    }>('/cms/reports/stats');
+    return this.request('/cms/reports/stats');
   }
 
   async getOrderStats(): Promise<{
@@ -280,12 +301,7 @@ class ApiClient {
     completed: number;
     cancelled: number;
   }> {
-    return this.request<{
-      pending: number;
-      processing: number;
-      completed: number;
-      cancelled: number;
-    }>('/cms/reports/order-stats');
+    return this.request('/cms/reports/order-stats');
   }
 
   async getRevenueByMonth(): Promise<Array<{
@@ -293,19 +309,9 @@ class ApiClient {
     revenue: number;
     count: number;
   }>> {
-    const data = await this.request<Array<{
-      _id: number;
-      revenue: number;
-      count: number;
-    }>>('/cms/reports/revenue-by-month');
-    
-    return data.map(item => ({
-      month: item._id,
-      revenue: item.revenue,
-      count: item.count,
-    }));
+    return this.request('/cms/reports/revenue-by-month');
   }
 }
 
-// Export singleton instance
-export const apiClient = new ApiClient(API_BASE_URL); 
+// Create and export a singleton instance
+export const api = new ApiClient(API_BASE_URL); 
