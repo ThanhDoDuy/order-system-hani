@@ -1,57 +1,8 @@
-'use client';
-
-import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Button } from '@/components/ui/button';
+import { Suspense } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Chrome } from 'lucide-react';
+import LoginForm from './login-form';
 
 export default function LoginPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const errorParam = searchParams.get('error');
-    if (errorParam) {
-      switch (errorParam) {
-        case 'access_denied':
-          setError('Access denied. Please try again.');
-          break;
-        case 'no_code':
-          setError('Authentication failed. Please try again.');
-          break;
-        case 'auth_failed':
-          setError('Authentication failed. Please try again.');
-          break;
-        case 'server_error':
-          setError('Server error. Please try again later.');
-          break;
-        default:
-          setError('An error occurred. Please try again.');
-      }
-    }
-  }, [searchParams]);
-
-  const handleGoogleLogin = async () => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const res = await fetch('/api/auth/google-url');
-      if (!res.ok) {
-        throw new Error('Server error');
-      }
-      const data = await res.json();
-      window.location.href = data.url;
-    } catch (err) {
-      setError('Server error. Please try again later.');
-      setIsLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md">
@@ -61,27 +12,20 @@ export default function LoginPage() {
             Sign in to your account to continue
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          
-          <Button
-            onClick={handleGoogleLogin}
-            disabled={isLoading}
-            className="w-full"
-            variant="outline"
-          >
-            <Chrome className="mr-2 h-4 w-4" />
-            {isLoading ? 'Signing in...' : 'Sign in with Google'}
-          </Button>
-          
-          <div className="text-center text-sm text-gray-500">
-            By signing in, you agree to our terms of service and privacy policy.
-          </div>
-        </CardContent>
+        <Suspense fallback={
+          <CardContent className="space-y-4">
+            <div className="animate-pulse flex space-x-4">
+              <div className="flex-1 space-y-4 py-1">
+                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                <div className="space-y-2">
+                  <div className="h-10 bg-gray-200 rounded"></div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        }>
+          <LoginForm />
+        </Suspense>
       </Card>
     </div>
   );
