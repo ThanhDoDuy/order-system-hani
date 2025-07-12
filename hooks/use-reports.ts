@@ -1,42 +1,32 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { apiClient } from "@/lib/api"
+import { api } from "@/lib/api"
 
-export interface Stats {
-  totalOrders: number;
-  totalRevenue: number;
-  totalProducts: number;
-  avgOrderValue: number;
+interface Stats {
+  totalOrders: number
+  totalRevenue: number
+  totalProducts: number
+  avgOrderValue: number
 }
 
-export interface OrderStats {
-  pending: number;
-  processing: number;
-  completed: number;
-  cancelled: number;
+interface OrderStats {
+  pending: number
+  processing: number
+  completed: number
+  cancelled: number
 }
 
-export interface RevenueByMonth {
-  month: number;
-  revenue: number;
-  count: number;
+interface RevenueData {
+  month: number
+  revenue: number
+  count: number
 }
 
 export function useReports() {
-  const [stats, setStats] = useState<Stats>({
-    totalOrders: 0,
-    totalRevenue: 0,
-    totalProducts: 0,
-    avgOrderValue: 0,
-  })
-  const [orderStats, setOrderStats] = useState<OrderStats>({
-    pending: 0,
-    processing: 0,
-    completed: 0,
-    cancelled: 0,
-  })
-  const [revenueByMonth, setRevenueByMonth] = useState<RevenueByMonth[]>([])
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [orderStats, setOrderStats] = useState<OrderStats | null>(null)
+  const [revenueData, setRevenueData] = useState<RevenueData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -44,7 +34,7 @@ export function useReports() {
     try {
       setLoading(true)
       setError(null)
-      const data = await apiClient.getStats()
+      const data = await api.getStats()
       setStats(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch stats')
@@ -56,40 +46,50 @@ export function useReports() {
 
   const fetchOrderStats = async () => {
     try {
+      setLoading(true)
       setError(null)
-      const data = await apiClient.getOrderStats()
+      const data = await api.getOrderStats()
       setOrderStats(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch order stats')
       console.error('Error fetching order stats:', err)
+    } finally {
+      setLoading(false)
     }
   }
 
-  const fetchRevenueByMonth = async () => {
+  const fetchRevenueData = async () => {
     try {
+      setLoading(true)
       setError(null)
-      const data = await apiClient.getRevenueByMonth()
-      setRevenueByMonth(data)
+      const data = await api.getRevenueByMonth()
+      setRevenueData(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch revenue by month')
-      console.error('Error fetching revenue by month:', err)
+      setError(err instanceof Error ? err.message : 'Failed to fetch revenue data')
+      console.error('Error fetching revenue data:', err)
+    } finally {
+      setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchStats()
-    fetchOrderStats()
-    fetchRevenueByMonth()
+    Promise.all([
+      fetchStats(),
+      fetchOrderStats(),
+      fetchRevenueData()
+    ])
   }, [])
 
   return {
     stats,
     orderStats,
-    revenueByMonth,
+    revenueData,
     loading,
     error,
-    refetch: fetchStats,
-    refetchOrderStats: fetchOrderStats,
-    refetchRevenueByMonth: fetchRevenueByMonth,
+    refetch: () => Promise.all([
+      fetchStats(),
+      fetchOrderStats(),
+      fetchRevenueData()
+    ])
   }
 } 

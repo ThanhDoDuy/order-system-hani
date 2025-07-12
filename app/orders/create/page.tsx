@@ -23,7 +23,7 @@ interface OrderItem {
 
 export default function CreateOrderPage() {
   const { products } = useProducts()
-  const { createOrder } = useOrders()
+  const { addOrder } = useOrders()
   const router = useRouter()
   const [orderItems, setOrderItems] = useState<OrderItem[]>([])
   const [shippingFee, setShippingFee] = useState(0)
@@ -80,8 +80,7 @@ export default function CreateOrderPage() {
       toast({
         title: "Vui lòng thêm ít nhất một sản phẩm",
         variant: "destructive",
-        duration: 3000,
-        position: "top-center",
+        duration: 3000
       })
       return
     }
@@ -90,8 +89,7 @@ export default function CreateOrderPage() {
       toast({
         title: "Vui lòng điền đầy đủ thông tin khách hàng",
         variant: "destructive",
-        duration: 3000,
-        position: "top-center",
+        duration: 3000
       })
       return
     }
@@ -112,12 +110,11 @@ export default function CreateOrderPage() {
         })),
       }
 
-      await createOrder(orderData)
+      await addOrder(orderData)
       toast({
         title: "Đơn hàng đã được tạo thành công!",
-        variant: "success",
-        duration: 3000,
-        position: "top-center",
+        variant: "default",
+        duration: 3000
       })
       router.push("/orders")
     } catch (error) {
@@ -125,8 +122,7 @@ export default function CreateOrderPage() {
       toast({
         title: "Có lỗi xảy ra khi tạo đơn hàng. Vui lòng thử lại.",
         variant: "destructive",
-        duration: 3000,
-        position: "top-center",
+        duration: 3000
       })
     } finally {
       setIsSubmitting(false)
