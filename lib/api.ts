@@ -1,6 +1,7 @@
 import { config } from './config'
 
-const API_BASE_URL = config.api.baseUrl;
+// Use the proxied URL instead of direct backend URL
+const API_BASE_URL = '/api/v1';
 
 // Backend Types (as returned from API)
 interface BackendProduct {
@@ -159,6 +160,7 @@ function transformOrder(backendOrder: BackendOrder): Order {
 // API Client
 class ApiClient {
   private baseUrl: string;
+  private maxRetries = 1;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
@@ -166,7 +168,8 @@ class ApiClient {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    retryCount = 0
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     
@@ -175,6 +178,7 @@ class ApiClient {
         'Content-Type': 'application/json',
         ...options.headers,
       },
+      credentials: 'same-origin', // Changed from 'include' to 'same-origin' since we're using proxy
       ...options,
     };
 
@@ -182,12 +186,22 @@ class ApiClient {
       const response = await fetch(url, config);
       
       if (!response.ok) {
+        if (response.status === 401 && retryCount < this.maxRetries) {
+          // Token might be expired, wait a bit and retry
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return this.request(endpoint, options, retryCount + 1);
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       const text = await response.text();
       return text ? JSON.parse(text) : {} as T;
     } catch (error) {
+      if (error instanceof Error && error.message.includes('401')) {
+        // If we get here, we've already retried and still got 401
+        window.location.href = '/login';
+        throw new Error('Unauthorized - redirecting to login');
+      }
       console.error('API request failed:', error);
       throw error;
     }
@@ -266,12 +280,7 @@ class ApiClient {
     totalProducts: number;
     avgOrderValue: number;
   }> {
-    return this.request<{
-      totalOrders: number;
-      totalRevenue: number;
-      totalProducts: number;
-      avgOrderValue: number;
-    }>('/cms/reports/stats');
+    return this.request('/cms/reports/stats');
   }
 
   async getOrderStats(): Promise<{
@@ -280,12 +289,7 @@ class ApiClient {
     completed: number;
     cancelled: number;
   }> {
-    return this.request<{
-      pending: number;
-      processing: number;
-      completed: number;
-      cancelled: number;
-    }>('/cms/reports/order-stats');
+    return this.request('/cms/reports/order-stats');
   }
 
   async getRevenueByMonth(): Promise<Array<{
@@ -293,19 +297,9 @@ class ApiClient {
     revenue: number;
     count: number;
   }>> {
-    const data = await this.request<Array<{
-      _id: number;
-      revenue: number;
-      count: number;
-    }>>('/cms/reports/revenue-by-month');
-    
-    return data.map(item => ({
-      month: item._id,
-      revenue: item.revenue,
-      count: item.count,
-    }));
+    return this.request('/cms/reports/revenue-by-month');
   }
 }
 
-// Export singleton instance
-export const apiClient = new ApiClient(API_BASE_URL); 
+// Create and export a singleton instance
+export const api = new ApiClient(API_BASE_URL); 

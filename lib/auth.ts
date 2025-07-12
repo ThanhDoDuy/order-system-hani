@@ -1,5 +1,4 @@
-// Đã xóa import { cookies } from 'next/headers' vì chỉ dùng được trong server component hoặc route handler.
-// Nếu cần lấy cookies ở server, hãy chuyển logic này sang file trong app/ hoặc api route.
+import { cookies } from 'next/headers';
 
 export interface User {
   id: string;
@@ -26,14 +25,14 @@ export function getGoogleOAuthUrl(): string {
 
 export async function getCurrentUser(): Promise<User | null> {
   try {
-    // const cookieStore = await cookies(); // Xóa dòng này
-    const userInfo = null; // Xóa dòng này
+    const cookieStore = await cookies();
+    const userInfo = cookieStore.get('user_info')?.value;
     
-    if (!userInfo) { // Xóa dòng này
+    if (!userInfo) {
       return null;
     }
 
-    return JSON.parse(userInfo); // Xóa dòng này
+    return JSON.parse(userInfo);
   } catch (error) {
     console.error('Error getting current user:', error);
     return null;
@@ -42,8 +41,8 @@ export async function getCurrentUser(): Promise<User | null> {
 
 export async function getAuthToken(): Promise<string | null> {
   try {
-    // const cookieStore = await cookies(); // Xóa dòng này
-    const token = null; // Xóa dòng này
+    const cookieStore = await cookies();
+    const token = cookieStore.get('auth_token')?.value;
     return token || null;
   } catch (error) {
     console.error('Error getting auth token:', error);
