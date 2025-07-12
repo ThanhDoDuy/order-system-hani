@@ -99,21 +99,38 @@ export default function ProductsPage() {
 
       {loading ? (
         <div className="text-center py-8">Đang tải...</div>
+      ) : error ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Package className="h-12 w-12 text-red-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-red-600 mb-2">
+              Lỗi khi tải dữ liệu
+            </h3>
+            <p className="text-gray-500 mb-4">
+              {error}
+            </p>
+            <Button 
+              variant="outline" 
+              onClick={() => window.location.reload()}
+              className="mx-auto"
+            >
+              Tải lại trang
+            </Button>
+          </CardContent>
+        </Card>
       ) : filteredProducts.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
             <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {error ? "Không load được sản phẩm" : searchTerm ? "Không tìm thấy sản phẩm nào" : "Chưa có sản phẩm nào"}
+              {searchTerm ? "Không tìm thấy sản phẩm nào" : "Chưa có sản phẩm nào"}
             </h3>
             <p className="text-gray-500 mb-4">
-              {error
-                ? "Vui lòng thử lại hoặc kiểm tra kết nối."
-                : searchTerm
+              {searchTerm
                 ? "Thử tìm kiếm với từ khóa khác"
                 : "Bắt đầu bằng cách thêm sản phẩm đầu tiên"}
             </p>
-            {!searchTerm && !error && (
+            {!searchTerm && (
               <Button onClick={() => setIsDialogOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Thêm sản phẩm

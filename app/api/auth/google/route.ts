@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
 const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI! || 'http://localhost:3000/api/auth/callback/google';
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -41,42 +41,69 @@ export async function GET(request: NextRequest) {
     const tokenData = await tokenResponse.json();
     const { id_token } = tokenData;
 
-    // Send id_token to backend
-    const backendResponse = await fetch(`${BACKEND_URL}/auth/google`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ idToken: id_token }),
-    });
-    console.log("========================================",backendResponse)
-    if (!backendResponse.ok) {
-      throw new Error('Backend authentication failed');
+    try {
+      // Send id_token to backend
+      const backendAuthUrl = `${BACKEND_URL}/api/v1/auth/google`;
+      console.log('Calling backend URL:', backendAuthUrl);
+      
+      const backendResponse = await fetch(backendAuthUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ idToken: id_token }),
+      });
+      console.log('backendResponse status:', backendResponse.status);
+      console.log('backendResponse ok:', backendResponse.ok);
+      
+      const responseText = await backendResponse.text();
+      console.log('Raw response text:', responseText);
+      
+      if (!backendResponse.ok) {
+        console.error('Backend auth failed:', responseText);
+        throw new Error(`Backend authentication failed: ${backendResponse.status}`);
+      }
+
+      let authData;
+      try {
+        authData = JSON.parse(responseText);
+        console.log('Parsed authData:', authData);
+      } catch (parseError) {
+        console.error('Failed to parse auth response:', parseError);
+        throw new Error('Invalid response format from backend');
+      }
+      
+      if (!authData.access_token) {
+        console.error('Missing access_token in response');
+        throw new Error('Invalid authentication response: missing access_token');
+      }
+      
+      const { access_token, user } = authData;
+
+      // Create response with cookies
+      const response = NextResponse.redirect(new URL('/dashboard', request.url));
+      
+      // Set JWT token in httpOnly cookie
+      response.cookies.set('auth_token', access_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60, // 7 days
+      });
+
+      // Set user info in session cookie
+      response.cookies.set('user_info', JSON.stringify(user), {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60, // 7 days
+      });
+
+      return response;
+    } catch (backendError) {
+      console.error('Backend connection error:', backendError);
+      return NextResponse.redirect(new URL('/login?error=server_error', request.url));
     }
-
-    const authData = await backendResponse.json();
-    const { access_token, user } = authData;
-
-    // Create response with cookies
-    const response = NextResponse.redirect(new URL('/dashboard', request.url));
-    
-    // Set JWT token in httpOnly cookie
-    response.cookies.set('auth_token', access_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-    });
-
-    // Set user info in session cookie
-    response.cookies.set('user_info', JSON.stringify(user), {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-    });
-
-    return response;
   } catch (error) {
     console.error('Google OAuth error:', error);
     return NextResponse.redirect(new URL('/login?error=auth_failed', request.url));

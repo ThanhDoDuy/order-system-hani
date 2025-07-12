@@ -26,6 +26,9 @@ export default function LoginPage() {
         case 'auth_failed':
           setError('Authentication failed. Please try again.');
           break;
+        case 'server_error':
+          setError('Server error. Please try again later.');
+          break;
         default:
           setError('An error occurred. Please try again.');
       }
@@ -34,12 +37,17 @@ export default function LoginPage() {
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
+    setError(null);
+    
     try {
       const res = await fetch('/api/auth/google-url');
+      if (!res.ok) {
+        throw new Error('Server error');
+      }
       const data = await res.json();
       window.location.href = data.url;
     } catch (err) {
-      setError('Không thể lấy link đăng nhập Google. Vui lòng thử lại.');
+      setError('Server error. Please try again later.');
       setIsLoading(false);
     }
   };

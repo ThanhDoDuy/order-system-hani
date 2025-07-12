@@ -20,14 +20,11 @@ export function useAuth() {
           setUser(userInfo);
           setIsAuthenticated(true);
         } else {
-          // Only redirect if we're not already on the login page
-          if (window.location.pathname !== '/login') {
-            window.location.href = '/login';
-          }
+          setUser(null);
+          setIsAuthenticated(false);
         }
       } catch (error) {
         console.error('Error checking auth:', error);
-        // Clear state on error
         setUser(null);
         setIsAuthenticated(false);
       } finally {
@@ -46,7 +43,6 @@ export function useAuth() {
       });
 
       if (response.ok) {
-        // Clear state before redirect
         setUser(null);
         setIsAuthenticated(false);
         window.location.href = '/login';

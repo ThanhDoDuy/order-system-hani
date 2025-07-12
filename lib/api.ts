@@ -1,7 +1,7 @@
 import { config } from './config'
 
-// Use the proxied URL instead of direct backend URL
-const API_BASE_URL = '/api/v1';
+// Use direct backend URL
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
 
 // Backend Types (as returned from API)
 interface BackendProduct {
@@ -160,7 +160,6 @@ function transformOrder(backendOrder: BackendOrder): Order {
 // API Client
 class ApiClient {
   private baseUrl: string;
-  private maxRetries = 1;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
@@ -168,8 +167,7 @@ class ApiClient {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {},
-    retryCount = 0
+    options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     
@@ -178,7 +176,7 @@ class ApiClient {
         'Content-Type': 'application/json',
         ...options.headers,
       },
-      credentials: 'same-origin', // Changed from 'include' to 'same-origin' since we're using proxy
+      credentials: 'include', // Changed to 'include' for cross-origin requests
       ...options,
     };
 
@@ -186,22 +184,36 @@ class ApiClient {
       const response = await fetch(url, config);
       
       if (!response.ok) {
-        if (response.status === 401 && retryCount < this.maxRetries) {
-          // Token might be expired, wait a bit and retry
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return this.request(endpoint, options, retryCount + 1);
+        if (response.status === 401) {
+          // Clear invalid token
+          document.cookie = 'auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+          document.cookie = 'user_info=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+          
+          // Only redirect if not already on login page
+          if (!window.location.pathname.includes('/login')) {
+            window.location.href = '/login';
+          }
+          throw new Error('Unauthorized - token invalid or expired');
         }
-        throw new Error(`HTTP error! status: ${response.status}`);
+        
+        // Try to get error message from response
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          // If can't parse JSON, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       
       const text = await response.text();
-      return text ? JSON.parse(text) : {} as T;
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('401')) {
-        // If we get here, we've already retried and still got 401
-        window.location.href = '/login';
-        throw new Error('Unauthorized - redirecting to login');
+      if (!text) {
+        throw new Error('No data received from server');
       }
+      return JSON.parse(text);
+    } catch (error) {
       console.error('API request failed:', error);
       throw error;
     }

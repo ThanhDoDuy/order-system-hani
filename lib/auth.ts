@@ -39,18 +39,8 @@ export async function getCurrentUser(): Promise<User | null> {
   }
 }
 
-export async function getAuthToken(): Promise<string | null> {
-  try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
-    return token || null;
-  } catch (error) {
-    console.error('Error getting auth token:', error);
-    return null;
-  }
-}
-
 export async function isAuthenticated(): Promise<boolean> {
-  const token = await getAuthToken();
+  const cookieStore = await cookies();
+  const token = cookieStore.get('auth_token')?.value;
   return !!token;
 } 

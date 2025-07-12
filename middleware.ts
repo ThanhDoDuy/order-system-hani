@@ -5,24 +5,43 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
   // Public routes that don't require authentication
-  const publicRoutes = ['/login', '/api/auth/google', '/api/auth/logout'];
+  const publicRoutes = ['/login', '/api/auth/google', '/api/auth/google-url', '/api/auth/logout'];
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
   
+  // Skip middleware for static files and API routes (except auth)
+  if (
+    pathname.startsWith('/_next') || 
+    pathname.startsWith('/api/') && !pathname.startsWith('/api/auth/')
+  ) {
+    return NextResponse.next();
+  }
+
   // Check if user is authenticated
   const authToken = request.cookies.get('auth_token');
-  const isAuthenticated = !!authToken;
+  const isAuthenticated = !!authToken?.value;
   
-  // Redirect to login if accessing protected route without authentication
-  if (!isAuthenticated && !isPublicRoute && pathname !== '/') {
-    return NextResponse.redirect(new URL('/login', request.url));
-  }
-  
-  // Redirect to dashboard if accessing login page while authenticated
+  // If accessing login while authenticated
   if (isAuthenticated && pathname === '/login') {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    // Verify token format before redirecting
+    try {
+      const token = authToken.value;
+      if (token && token.split('.').length === 3) { // Basic JWT format check
+        return NextResponse.redirect(new URL('/dashboard', request.url));
+      }
+    } catch (e) {
+      // Invalid token format, let them stay on login
+      return NextResponse.next();
+    }
   }
   
-  // Redirect to dashboard if accessing root page while authenticated
+  // If accessing protected route without authentication
+  if (!isAuthenticated && !isPublicRoute && pathname !== '/') {
+    const url = new URL('/login', request.url);
+    url.searchParams.set('from', pathname);
+    return NextResponse.redirect(url);
+  }
+  
+  // If accessing root while authenticated
   if (isAuthenticated && pathname === '/') {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
