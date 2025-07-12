@@ -5,14 +5,18 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
   // Public routes that don't require authentication
-  const publicRoutes = ['/login', '/api/auth/google', '/api/auth/google-url', '/api/auth/logout'];
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
+  const publicRoutes = [
+    '/login',
+    '/api/auth/google',
+    '/api/auth/google-url',
+    '/api/auth/logout',
+    '/api/auth/callback',
+    '/_next',
+    '/favicon.ico',
+  ];
   
-  // Skip middleware for static files and API routes (except auth)
-  if (
-    pathname.startsWith('/_next') || 
-    pathname.startsWith('/api/') && !pathname.startsWith('/api/auth/')
-  ) {
+  // Skip middleware for public routes and static files
+  if (publicRoutes.some(route => pathname.startsWith(route))) {
     return NextResponse.next();
   }
 
@@ -22,20 +26,25 @@ export function middleware(request: NextRequest) {
   
   // If accessing login while authenticated
   if (isAuthenticated && pathname === '/login') {
-    // Verify token format before redirecting
-    try {
-      const token = authToken.value;
-      if (token && token.split('.').length === 3) { // Basic JWT format check
-        return NextResponse.redirect(new URL('/dashboard', request.url));
-      }
-    } catch (e) {
-      // Invalid token format, let them stay on login
-      return NextResponse.next();
+    const token = authToken.value;
+    // Only redirect if token looks valid
+    if (token && token.split('.').length === 3) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
     }
+    return NextResponse.next();
   }
   
+  // Protected routes that require authentication
+  const protectedRoutes = [
+    '/dashboard',
+    '/products',
+    '/orders',
+    '/cms',
+    '/api/v1'
+  ];
+  
   // If accessing protected route without authentication
-  if (!isAuthenticated && !isPublicRoute && pathname !== '/') {
+  if (!isAuthenticated && protectedRoutes.some(route => pathname.startsWith(route))) {
     const url = new URL('/login', request.url);
     url.searchParams.set('from', pathname);
     return NextResponse.redirect(url);
