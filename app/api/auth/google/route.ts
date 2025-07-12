@@ -51,53 +51,22 @@ export async function GET(request: NextRequest) {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Important: allow cookies to be set
         body: JSON.stringify({ idToken: id_token }),
       });
-      console.log('backendResponse status:', backendResponse.status);
-      console.log('backendResponse ok:', backendResponse.ok);
-      
-      const responseText = await backendResponse.text();
-      console.log('Raw response text:', responseText);
       
       if (!backendResponse.ok) {
-        console.error('Backend auth failed:', responseText);
         throw new Error(`Backend authentication failed: ${backendResponse.status}`);
       }
 
-      let authData;
-      try {
-        authData = JSON.parse(responseText);
-        console.log('Parsed authData:', authData);
-      } catch (parseError) {
-        console.error('Failed to parse auth response:', parseError);
-        throw new Error('Invalid response format from backend');
-      }
-      
-      if (!authData.access_token) {
-        console.error('Missing access_token in response');
-        throw new Error('Invalid authentication response: missing access_token');
-      }
-      
-      const { access_token, user } = authData;
-
-      // Create response with cookies
+      // Create response that will preserve the cookies set by the backend
       const response = NextResponse.redirect(new URL('/dashboard', request.url));
       
-      // Set JWT token in httpOnly cookie
-      response.cookies.set('auth_token', access_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60, // 7 days
-      });
-
-      // Set user info in session cookie
-      response.cookies.set('user_info', JSON.stringify(user), {
-        httpOnly: false,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60, // 7 days
-      });
+      // Copy cookies from backend response to our response
+      const setCookieHeader = backendResponse.headers.get('set-cookie');
+      if (setCookieHeader) {
+        response.headers.set('set-cookie', setCookieHeader);
+      }
 
       return response;
     } catch (backendError) {
