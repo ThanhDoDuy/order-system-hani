@@ -166,22 +166,25 @@ class ApiClient {
     this.baseUrl = baseUrl;
   }
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-    
-    const config: RequestInit = {
+  private getDefaultConfig(options: RequestInit = {}): RequestInit {
+    return {
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
         ...options.headers,
       },
-      credentials: 'include',
       mode: 'cors',
       ...options,
     };
+  }
+
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    const url = `${this.baseUrl}${endpoint}`;
+    const config = this.getDefaultConfig(options);
 
     try {
       const response = await fetch(url, config);
